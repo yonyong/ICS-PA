@@ -1,21 +1,6 @@
-#***************************************************************************************
-# Copyright (c) 2014-2022 Zihao Yu, Nanjing University
-#
-# NEMU is licensed under Mulan PSL v2.
-# You can use this software according to the terms and conditions of the Mulan PSL v2.
-# You may obtain a copy of Mulan PSL v2 at:
-#          http://license.coscl.org.cn/MulanPSL2
-#
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-#
-# See the Mulan PSL v2 for more details.
-#**************************************************************************************/
-
 REPO_PATH = repo
 ifeq ($(wildcard repo/spike_main),)
-  $(shell git clone --depth=1 git@github.com:NJU-ProjectN/riscv-isa-sim $(REPO_PATH))
+  $(shell git clone --depth=1 https://github.com/NJU-ProjectN/riscv-isa-sim $(REPO_PATH))
 endif
 
 REPO_BUILD_PATH = $(REPO_PATH)/build
@@ -27,7 +12,7 @@ $(REPO_MAKEFILE):
 
 SPIKE = $(REPO_BUILD_PATH)/spike
 $(SPIKE): $(REPO_MAKEFILE)
-	CFLAGS="-fvisibility=hidden" CXXFLAGS="-fvisibility=hidden" $(MAKE) -C $(^D)
+	$(MAKE) -C $(^D)
 
 BUILD_DIR = ./build
 $(shell mkdir -p $(BUILD_DIR))
@@ -43,7 +28,7 @@ BINARY = $(BUILD_DIR)/$(NAME)
 SRCS = difftest.cc
 
 $(BINARY): $(SPIKE) $(SRCS)
-	g++ -std=c++17 -O2 -shared -fPIC -fvisibility=hidden $(INC_PATH) $(SRCS) $(INC_LIBS) -o $@
+	g++ -O2 -shared -fPIC $(INC_PATH) $(SRCS) $(INC_LIBS) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)

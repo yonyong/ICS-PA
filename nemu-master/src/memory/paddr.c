@@ -1,26 +1,20 @@
-/***************************************************************************************
-* Copyright (c) 2014-2022 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #include <memory/host.h>
 #include <memory/paddr.h>
 #include <device/mmio.h>
 #include <isa.h>
 
-#if   defined(CONFIG_PMEM_MALLOC)
+#if   defined(CONFIG_TARGET_AM)
 static uint8_t *pmem = NULL;
-#else // CONFIG_PMEM_GARRAY
+#else
+//由make menuconfig后的配置中获取。 CONFIG_MSIZE=0x8000000  
+//默认128M  See ./Kconfig  config MSIZE
+/**
+ * 地址映射机制：
+ * 将来CPU访问内存时, 我们会将CPU将要访问的内存地址映射到pmem中的相应偏移位置, 
+ * 这是通过nemu/src/memory/paddr.c中的guest_to_host()函数实现的. 例如如果
+ * mips32的CPU打算访问内存地址0x80000000, 我们会让它最终访问pmem[0], 从而可
+ * 以正确访问客户程序的第一条指令。
+*/
 static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
 #endif
 
@@ -36,13 +30,9 @@ static void pmem_write(paddr_t addr, int len, word_t data) {
   host_write(guest_to_host(addr), len, data);
 }
 
-static void out_of_bound(paddr_t addr) {
-  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
-      addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
-}
-
 void init_mem() {
-#if   defined(CONFIG_PMEM_MALLOC)
+#if   defined(CONFIG_TARGET_AM)
+  //C语言 动态内存分配函数，用于在程序运行时从堆中分配指定大小的内存空间（以字节为单位）
   pmem = malloc(CONFIG_MSIZE);
   assert(pmem);
 #endif
@@ -53,18 +43,20 @@ void init_mem() {
     p[i] = rand();
   }
 #endif
-  Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
+  Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]",
+      (paddr_t)CONFIG_MBASE, (paddr_t)CONFIG_MBASE + CONFIG_MSIZE);
 }
 
 word_t paddr_read(paddr_t addr, int len) {
   if (likely(in_pmem(addr))) return pmem_read(addr, len);
-  IFDEF(CONFIG_DEVICE, return mmio_read(addr, len));
-  out_of_bound(addr);
-  return 0;
+  MUXDEF(CONFIG_DEVICE, return mmio_read(addr, len),
+    panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR ") at pc = " FMT_WORD,
+      addr, CONFIG_MBASE, CONFIG_MBASE + CONFIG_MSIZE, cpu.pc));
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
   if (likely(in_pmem(addr))) { pmem_write(addr, len, data); return; }
-  IFDEF(CONFIG_DEVICE, mmio_write(addr, len, data); return);
-  out_of_bound(addr);
+  MUXDEF(CONFIG_DEVICE, mmio_write(addr, len, data),
+    panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR ") at pc = " FMT_WORD,
+      addr, CONFIG_MBASE, CONFIG_MBASE + CONFIG_MSIZE, cpu.pc));
 }
